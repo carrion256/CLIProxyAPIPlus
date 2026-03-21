@@ -160,6 +160,7 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
 		err = newCodexStatusErr(httpResp.StatusCode, b)
 		return resp, err
 	}
+	updateAuthRateLimitWindowsFromHeaders(auth, httpResp.Header, time.Now().UTC())
 	data, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		helps.RecordAPIResponseError(ctx, e.cfg, err)
@@ -306,6 +307,7 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
 		err = newCodexStatusErr(httpResp.StatusCode, b)
 		return resp, err
 	}
+	updateAuthRateLimitWindowsFromHeaders(auth, httpResp.Header, time.Now().UTC())
 	data, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		helps.RecordAPIResponseError(ctx, e.cfg, err)
@@ -403,6 +405,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 		err = newCodexStatusErr(httpResp.StatusCode, data)
 		return nil, err
 	}
+	updateAuthRateLimitWindowsFromHeaders(auth, httpResp.Header, time.Now().UTC())
 	out := make(chan cliproxyexecutor.StreamChunk)
 	go func() {
 		defer close(out)

@@ -43,6 +43,8 @@ import (
 
 const oauthCallbackSuccessHTML = `<html><head><meta charset="utf-8"><title>Authentication successful</title><script>setTimeout(function(){window.close();},5000);</script></head><body><h1>Authentication successful!</h1><p>You can close this window.</p><p>This window will close automatically in 5 seconds.</p></body></html>`
 
+const hiveContractVersion = "hive-opencode/1.0"
+
 type serverOptionConfig struct {
 	extraMiddleware      []gin.HandlerFunc
 	engineConfigurator   func(*gin.Engine)
@@ -358,6 +360,18 @@ func (s *Server) setupRoutes() {
 	}
 
 	// Root endpoint
+	s.engine.GET("/global/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"healthy":                     true,
+			"contract_version":            hiveContractVersion,
+			"supported_contract_versions": []string{hiveContractVersion},
+			"capabilities": gin.H{
+				"async": false,
+				"sse":   false,
+			},
+		})
+	})
+
 	s.engine.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "CLI Proxy API Server",

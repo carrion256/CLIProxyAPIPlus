@@ -221,6 +221,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		}
 		return resp, err
 	}
+	updateAuthRateLimitWindowsFromHeaders(auth, httpResp.Header, time.Now().UTC())
 	decodedBody, err := decodeResponseBody(httpResp.Body, httpResp.Header.Get("Content-Encoding"))
 	if err != nil {
 		helps.RecordAPIResponseError(ctx, e.cfg, err)
@@ -389,6 +390,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		err = statusErr{code: httpResp.StatusCode, msg: string(b)}
 		return nil, err
 	}
+	updateAuthRateLimitWindowsFromHeaders(auth, httpResp.Header, time.Now().UTC())
 	decodedBody, err := decodeResponseBody(httpResp.Body, httpResp.Header.Get("Content-Encoding"))
 	if err != nil {
 		helps.RecordAPIResponseError(ctx, e.cfg, err)

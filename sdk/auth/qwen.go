@@ -27,7 +27,8 @@ func (a *QwenAuthenticator) Provider() string {
 }
 
 func (a *QwenAuthenticator) RefreshLead() *time.Duration {
-	return new(20 * time.Minute)
+	d := 3 * time.Hour
+	return &d
 }
 
 func (a *QwenAuthenticator) Login(ctx context.Context, cfg *config.Config, opts *LoginOptions) (*coreauth.Auth, error) {

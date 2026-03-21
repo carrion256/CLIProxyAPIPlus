@@ -424,6 +424,12 @@ func (h *Handler) buildAuthFileEntry(auth *coreauth.Auth) gin.H {
 	if !auth.NextRetryAfter.IsZero() {
 		entry["next_retry_after"] = auth.NextRetryAfter
 	}
+	if until, ok := authRateLimitedUntil(auth); ok {
+		entry["rate_limited_until"] = until
+	}
+	if windows := authRateLimitWindows(auth); len(windows) > 0 {
+		entry["rate_limit_windows"] = windows
+	}
 	if path != "" {
 		entry["path"] = path
 		entry["source"] = "file"
@@ -515,6 +521,119 @@ func extractCodexIDTokenClaims(auth *coreauth.Auth) gin.H {
 		return nil
 	}
 	return result
+}
+
+func authRateLimitedUntil(auth *coreauth.Auth) (time.Time, bool) {
+	if auth == nil {
+		return time.Time{}, false
+	}
+	if !auth.NextRetryAfter.IsZero() {
+		return auth.NextRetryAfter.UTC(), true
+	}
+	windows := authRateLimitWindows(auth)
+	var until time.Time
+	for _, window := range windows {
+		usedPercent, _ := window["used_percent"].(int)
+		if usedPercent < 100 {
+			continue
+		}
+		resetAt, ok := parseLastRefreshValue(window["resets_at"])
+		if !ok {
+			continue
+		}
+		if until.IsZero() || resetAt.After(until) {
+			until = resetAt
+		}
+	}
+	if until.IsZero() {
+		return time.Time{}, false
+	}
+	return until.UTC(), true
+}
+
+func authRateLimitWindows(auth *coreauth.Auth) []gin.H {
+	if auth == nil || auth.Metadata == nil {
+		return nil
+	}
+	raw, ok := auth.Metadata["rate_limit_windows"]
+	if !ok {
+		return nil
+	}
+	items, ok := raw.([]map[string]any)
+	if !ok {
+		list, okList := raw.([]any)
+		if !okList {
+			return nil
+		}
+		items = make([]map[string]any, 0, len(list))
+		for _, item := range list {
+			typed, ok := item.(map[string]any)
+			if ok {
+				items = append(items, typed)
+			}
+		}
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	now := time.Now().UTC()
+	out := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		name := strings.TrimSpace(fmt.Sprint(item["name"]))
+		if name == "" {
+			continue
+		}
+		usedPercent, ok := parseIntValue(item["used_percent"])
+		if !ok {
+			continue
+		}
+		window := gin.H{
+			"name":         name,
+			"used_percent": usedPercent,
+		}
+		if duration, ok := parseIntValue(item["window_duration_min"]); ok && duration > 0 {
+			window["window_duration_min"] = duration
+		}
+		if resetAt, ok := parseLastRefreshValue(item["resets_at"]); ok {
+			if resetAt.Before(now) {
+				continue
+			}
+			window["resets_at"] = resetAt.UTC()
+		}
+		if updatedAt, ok := parseLastRefreshValue(item["updated_at"]); ok {
+			window["updated_at"] = updatedAt.UTC()
+		}
+		out = append(out, window)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseIntValue(raw any) (int, bool) {
+	switch v := raw.(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	case json.Number:
+		parsed, err := v.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int(parsed), true
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	default:
+		return 0, false
+	}
 }
 
 func authEmail(auth *coreauth.Auth) string {

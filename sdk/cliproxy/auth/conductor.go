@@ -763,7 +763,7 @@ func (m *Manager) wrapStreamResult(ctx context.Context, auth *Auth, provider, re
 			if chunk.Err != nil && !failed {
 				failed = true
 				rerr := &Error{Message: chunk.Err.Error()}
-				if se, ok := errors.AsType[cliproxyexecutor.StatusError](chunk.Err); ok && se != nil {
+				if se, ok := asStatusError(chunk.Err); ok && se != nil {
 					rerr.HTTPStatus = se.StatusCode()
 				}
 				m.MarkResult(ctx, Result{AuthID: auth.ID, Provider: provider, Model: resultModel, Success: false, Error: rerr})
@@ -817,7 +817,7 @@ func (m *Manager) executeStreamWithModelPool(ctx context.Context, executor Provi
 				return nil, errCtx
 			}
 			rerr := &Error{Message: errStream.Error()}
-			if se, ok := errors.AsType[cliproxyexecutor.StatusError](errStream); ok && se != nil {
+			if se, ok := asStatusError(errStream); ok && se != nil {
 				rerr.HTTPStatus = se.StatusCode()
 			}
 			result := Result{AuthID: auth.ID, Provider: provider, Model: resultModel, Success: false, Error: rerr}
@@ -838,7 +838,7 @@ func (m *Manager) executeStreamWithModelPool(ctx context.Context, executor Provi
 			}
 			if isRequestInvalidError(bootstrapErr) {
 				rerr := &Error{Message: bootstrapErr.Error()}
-				if se, ok := errors.AsType[cliproxyexecutor.StatusError](bootstrapErr); ok && se != nil {
+				if se, ok := asStatusError(bootstrapErr); ok && se != nil {
 					rerr.HTTPStatus = se.StatusCode()
 				}
 				result := Result{AuthID: auth.ID, Provider: provider, Model: resultModel, Success: false, Error: rerr}
@@ -849,7 +849,7 @@ func (m *Manager) executeStreamWithModelPool(ctx context.Context, executor Provi
 			}
 			if idx < len(execModels)-1 {
 				rerr := &Error{Message: bootstrapErr.Error()}
-				if se, ok := errors.AsType[cliproxyexecutor.StatusError](bootstrapErr); ok && se != nil {
+				if se, ok := asStatusError(bootstrapErr); ok && se != nil {
 					rerr.HTTPStatus = se.StatusCode()
 				}
 				result := Result{AuthID: auth.ID, Provider: provider, Model: resultModel, Success: false, Error: rerr}
@@ -1298,7 +1298,7 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 					return cliproxyexecutor.Response{}, errCtx
 				}
 				result.Error = &Error{Message: errExec.Error()}
-				if se, ok := errors.AsType[cliproxyexecutor.StatusError](errExec); ok && se != nil {
+				if se, ok := asStatusError(errExec); ok && se != nil {
 					result.Error.HTTPStatus = se.StatusCode()
 				}
 				if ra := retryAfterFromError(errExec); ra != nil {
@@ -1376,7 +1376,7 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 					return cliproxyexecutor.Response{}, errCtx
 				}
 				result.Error = &Error{Message: errExec.Error()}
-				if se, ok := errors.AsType[cliproxyexecutor.StatusError](errExec); ok && se != nil {
+				if se, ok := asStatusError(errExec); ok && se != nil {
 					result.Error.HTTPStatus = se.StatusCode()
 				}
 				if ra := retryAfterFromError(errExec); ra != nil {
@@ -2255,6 +2255,30 @@ func clearAuthStateOnSuccess(auth *Auth, now time.Time) {
 	auth.UpdatedAt = now
 }
 
+func clearAuthSuspendedModelStates(auth *Auth, now time.Time) {
+	if auth == nil || len(auth.ModelStates) == 0 {
+		return
+	}
+	for _, state := range auth.ModelStates {
+		if state == nil {
+			continue
+		}
+		if !state.Unavailable {
+			continue
+		}
+		isAuthSuspension := false
+		if state.LastError != nil && (state.LastError.HTTPStatus == 401 || state.LastError.HTTPStatus == 403) {
+			isAuthSuspension = true
+		}
+		if state.StatusMessage == "unauthorized" || state.StatusMessage == "payment_required" {
+			isAuthSuspension = true
+		}
+		if isAuthSuspension {
+			resetModelState(state, now)
+		}
+	}
+}
+
 func cloneError(err *Error) *Error {
 	if err == nil {
 		return nil
@@ -2296,7 +2320,19 @@ func retryAfterFromError(err error) *time.Duration {
 	if retryAfter == nil {
 		return nil
 	}
-	return new(*retryAfter)
+	copied := *retryAfter
+	return &copied
+}
+
+func asStatusError(err error) (cliproxyexecutor.StatusError, bool) {
+	if err == nil {
+		return nil, false
+	}
+	var target cliproxyexecutor.StatusError
+	if errors.As(err, &target) && target != nil {
+		return target, true
+	}
+	return nil, false
 }
 
 func statusCodeFromResult(err *Error) int {
@@ -3230,11 +3266,13 @@ func (m *Manager) refreshAuth(ctx context.Context, id string) {
 		updated.Runtime = auth.Runtime
 	}
 	updated.LastRefreshedAt = now
-	// Preserve NextRefreshAfter set by the Authenticator
-	// If the Authenticator set a reasonable refresh time, it should not be overwritten
-	// If the Authenticator did not set it (zero value), shouldRefresh will use default logic
 	updated.LastError = nil
+	updated.StatusMessage = ""
+	updated.Status = StatusActive
+	updated.Unavailable = false
+	updated.NextRetryAfter = time.Time{}
 	updated.UpdatedAt = now
+	clearAuthSuspendedModelStates(updated, now)
 	_, _ = m.Update(ctx, updated)
 }
 

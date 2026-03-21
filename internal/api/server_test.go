@@ -135,6 +135,31 @@ func TestAmpProviderModelRoutes(t *testing.T) {
 	}
 }
 
+func TestServerGlobalHealthRoute(t *testing.T) {
+	server := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/global/health", nil)
+	rr := httptest.NewRecorder()
+
+	server.engine.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("unexpected status code for /global/health: got %d want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	body := rr.Body.String()
+	for _, want := range []string{
+		`"healthy":true`,
+		`"contract_version":"hive-opencode/1.0"`,
+		`"supported_contract_versions":["hive-opencode/1.0"]`,
+		`"async":false`,
+		`"sse":false`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("response body for /global/health missing %q: %s", want, body)
+		}
+	}
+}
+
 func TestDefaultRequestLoggerFactory_UsesResolvedLogDirectory(t *testing.T) {
 	t.Setenv("WRITABLE_PATH", "")
 	t.Setenv("writable_path", "")

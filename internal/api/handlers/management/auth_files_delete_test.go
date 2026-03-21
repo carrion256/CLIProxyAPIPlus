@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
@@ -125,5 +126,63 @@ func TestDeleteAuthFile_FallbackToAuthDirPath(t *testing.T) {
 	}
 	if _, errStat := os.Stat(filePath); !os.IsNotExist(errStat) {
 		t.Fatalf("expected auth file to be removed from auth dir, stat err: %v", errStat)
+	}
+}
+
+func TestListAuthFilesIncludesRateLimitWindowsFromMetadata(t *testing.T) {
+	t.Setenv("MANAGEMENT_PASSWORD", "")
+	gin.SetMode(gin.TestMode)
+
+	authDir := t.TempDir()
+	manager := coreauth.NewManager(nil, nil, nil)
+	resetAt := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	record := &coreauth.Auth{
+		ID:       "codex-1",
+		FileName: "codex-alice.json",
+		Provider: "codex",
+		Status:   coreauth.StatusActive,
+		Attributes: map[string]string{
+			"path": filepath.Join(authDir, "codex-alice.json"),
+		},
+		Metadata: map[string]any{
+			"email": "alice@example.com",
+			"rate_limit_windows": []map[string]any{
+				{
+					"name":                "primary",
+					"used_percent":        82,
+					"window_duration_min": 300,
+					"resets_at":           resetAt.Format(time.RFC3339),
+				},
+			},
+		},
+		NextRetryAfter: resetAt.Add(15 * time.Minute),
+	}
+	if _, err := manager.Register(context.Background(), record); err != nil {
+		t.Fatalf("register auth: %v", err)
+	}
+	h := NewHandlerWithoutConfigFilePath(&config.Config{AuthDir: authDir}, manager)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v0/management/auth-files", nil)
+	h.ListAuthFiles(ctx)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var payload struct {
+		Files []map[string]any `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if len(payload.Files) != 1 {
+		t.Fatalf("len(files) = %d, want 1", len(payload.Files))
+	}
+	if _, ok := payload.Files[0]["rate_limit_windows"]; !ok {
+		t.Fatalf("expected rate_limit_windows in payload, got %#v", payload.Files[0])
+	}
+	if _, ok := payload.Files[0]["rate_limited_until"]; !ok {
+		t.Fatalf("expected rate_limited_until in payload, got %#v", payload.Files[0])
 	}
 }

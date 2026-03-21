@@ -6,6 +6,31 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func TestConvertOpenAIResponsesRequestToCodex_SanitizesToolNames(t *testing.T) {
+	inputJSON := []byte(`{
+		"model":"gpt-5",
+		"input":[
+			{"type":"function_call","call_id":"call_1","name":"hive.claim_bead","arguments":"{}"}
+		],
+		"tools":[
+			{"type":"function","name":"hive.claim_bead","description":"claim","parameters":{"type":"object"}}
+		],
+		"tool_choice":{"type":"function","name":"hive.claim_bead"}
+	}`)
+
+	output := ConvertOpenAIResponsesRequestToCodex("gpt-5", inputJSON, false)
+
+	if got := gjson.GetBytes(output, "tools.0.name").String(); got != "hive_claim_bead" {
+		t.Fatalf("tools.0.name = %q, want %q; output=%s", got, "hive_claim_bead", string(output))
+	}
+	if got := gjson.GetBytes(output, "tool_choice.name").String(); got != "hive_claim_bead" {
+		t.Fatalf("tool_choice.name = %q, want %q; output=%s", got, "hive_claim_bead", string(output))
+	}
+	if got := gjson.GetBytes(output, "input.0.name").String(); got != "hive_claim_bead" {
+		t.Fatalf("input.0.name = %q, want %q; output=%s", got, "hive_claim_bead", string(output))
+	}
+}
+
 // TestConvertSystemRoleToDeveloper_BasicConversion tests the basic system -> developer role conversion
 func TestConvertSystemRoleToDeveloper_BasicConversion(t *testing.T) {
 	inputJSON := []byte(`{
