@@ -147,3 +147,19 @@ func TestLookupModelInfoReturnsCloneForStaticDefinitions(t *testing.T) {
 		t.Fatalf("expected static lookup clone, got %+v", second)
 	}
 }
+
+func TestLookupModelInfoReturnsGLM5VariantsFromStaticDefinitions(t *testing.T) {
+	for _, modelID := range []string{"glm-5", "glm-5-turbo", "glm-5.1"} {
+		info := LookupModelInfo(modelID)
+		if info == nil {
+			t.Fatalf("LookupModelInfo(%q) = nil", modelID)
+		}
+		if info.ID != modelID {
+			t.Fatalf("LookupModelInfo(%q).ID = %q", modelID, info.ID)
+		}
+	}
+
+	if info := LookupModelInfo("glm-5.1"); info == nil || info.Thinking == nil || len(info.Thinking.Levels) == 0 {
+		t.Fatalf("expected glm-5.1 thinking support, got %+v", info)
+	}
+}
