@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestManager_Update_PreservesModelStates(t *testing.T) {
+func TestManager_Update_DropsStaleModelStatesWhenRefreshPayloadOmitsThem(t *testing.T) {
 	m := NewManager(nil, nil, nil)
 
 	model := "test-model"
@@ -36,16 +36,20 @@ func TestManager_Update_PreservesModelStates(t *testing.T) {
 	if !ok || updated == nil {
 		t.Fatalf("expected auth to be present")
 	}
-	if len(updated.ModelStates) == 0 {
-		t.Fatalf("expected ModelStates to be preserved")
+	if updated.Metadata["k"] != "v2" {
+		t.Fatalf("expected metadata update to persist, got %+v", updated.Metadata)
 	}
-	state := updated.ModelStates[model]
-	if state == nil {
-		t.Fatalf("expected model state to be present")
+	if len(updated.ModelStates) != 0 {
+		t.Fatalf("expected stale model state to be dropped, got %+v", updated.ModelStates)
 	}
-	if state.Quota.BackoffLevel != backoffLevel {
-		t.Fatalf("expected BackoffLevel to be %d, got %d", backoffLevel, state.Quota.BackoffLevel)
+	if updated.Unavailable {
+		t.Fatalf("expected auth to remain available after refresh")
 	}
+	if !updated.NextRetryAfter.IsZero() {
+		t.Fatalf("expected auth NextRetryAfter to be cleared, got %v", updated.NextRetryAfter)
+	}
+	_ = model
+	_ = backoffLevel
 }
 
 func TestManager_Update_DisabledExistingDoesNotInheritModelStates(t *testing.T) {
