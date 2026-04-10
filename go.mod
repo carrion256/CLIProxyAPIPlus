@@ -1,6 +1,8 @@
 module github.com/router-for-me/CLIProxyAPI/v6
 
-go 1.23.9
+go 1.24.2
+
+toolchain go1.24.4
 
 require (
 	github.com/andybalholm/brotli v1.0.6
