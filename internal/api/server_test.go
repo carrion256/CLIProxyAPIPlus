@@ -149,8 +149,8 @@ func TestServerGlobalHealthRoute(t *testing.T) {
 	body := rr.Body.String()
 	for _, want := range []string{
 		`"healthy":true`,
-		`"contract_version":"hive-opencode/1.0"`,
-		`"supported_contract_versions":["hive-opencode/1.0"]`,
+		`"contract_version":"mutai-remote/1.0"`,
+		`"supported_contract_versions":["mutai-remote/1.0"]`,
 		`"async":false`,
 		`"sse":false`,
 	} {

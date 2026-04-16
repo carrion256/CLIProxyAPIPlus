@@ -2554,6 +2554,23 @@
       }
     },
     {
+      "id": "kimi-k2.6-code-preview",
+      "object": "model",
+      "created": 1771008000,
+      "owned_by": "moonshot",
+      "type": "kimi",
+      "display_name": "Kimi K2.6 Code Preview",
+      "description": "Kimi K2.6 Code Preview - Latest coding-specialized model with improved reasoning and agent planning",
+      "context_length": 262144,
+      "max_completion_tokens": 32768,
+      "thinking": {
+        "min": 1024,
+        "max": 32000,
+        "zero_allowed": true,
+        "dynamic_allowed": true
+      }
+    },
+    {
       "id": "kimi-k2.5",
       "object": "model",
       "created": 1769472000,
@@ -2569,6 +2586,56 @@
         "zero_allowed": true,
         "dynamic_allowed": true
       }
+    },
+    {
+      "id": "kimi-k2-thinking-turbo",
+      "object": "model",
+      "created": 1764988800,
+      "owned_by": "moonshot",
+      "type": "kimi",
+      "display_name": "Kimi K2 Thinking Turbo",
+      "description": "Kimi K2 Thinking Turbo - High-speed extended reasoning model",
+      "context_length": 262144,
+      "max_completion_tokens": 32768,
+      "thinking": {
+        "min": 1024,
+        "max": 32000,
+        "zero_allowed": true,
+        "dynamic_allowed": true
+      }
+    },
+    {
+      "id": "kimi-k2-turbo-preview",
+      "object": "model",
+      "created": 1764988800,
+      "owned_by": "moonshot",
+      "type": "kimi",
+      "display_name": "Kimi K2 Turbo Preview",
+      "description": "Kimi K2 Turbo Preview - High-speed coding model (~60 tok/s)",
+      "context_length": 262144,
+      "max_completion_tokens": 32768
+    },
+    {
+      "id": "kimi-k2-0905-preview",
+      "object": "model",
+      "created": 1757116800,
+      "owned_by": "moonshot",
+      "type": "kimi",
+      "display_name": "Kimi K2 0905 Preview",
+      "description": "Kimi K2 0905 Preview - Improved coding with extended context",
+      "context_length": 262144,
+      "max_completion_tokens": 32768
+    },
+    {
+      "id": "kimi-k2-0711-preview",
+      "object": "model",
+      "created": 1752192000,
+      "owned_by": "moonshot",
+      "type": "kimi",
+      "display_name": "Kimi K2 0711 Preview",
+      "description": "Kimi K2 0711 Preview - Original K2 MoE release",
+      "context_length": 131072,
+      "max_completion_tokens": 32768
     }
   ],
   "antigravity": [

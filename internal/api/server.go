@@ -43,7 +43,7 @@ import (
 
 const oauthCallbackSuccessHTML = `<html><head><meta charset="utf-8"><title>Authentication successful</title><script>setTimeout(function(){window.close();},5000);</script></head><body><h1>Authentication successful!</h1><p>You can close this window.</p><p>This window will close automatically in 5 seconds.</p></body></html>`
 
-const hiveContractVersion = "hive-opencode/1.0"
+const hiveContractVersion = "mutai-remote/1.0"
 
 type serverOptionConfig struct {
 	extraMiddleware      []gin.HandlerFunc
