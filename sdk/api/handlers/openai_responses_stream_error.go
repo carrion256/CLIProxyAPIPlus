@@ -14,10 +14,13 @@ type openAIResponsesStreamErrorChunk struct {
 	SequenceNumber int    `json:"sequence_number"`
 }
 
-func openAIResponsesStreamErrorCode(status int) string {
+func openAIResponsesStreamErrorCode(status int, errText string) string {
 	switch status {
 	case http.StatusUnauthorized:
-		return "invalid_api_key"
+		if code := defaultErrorCode(status, errText); code != "" {
+			return code
+		}
+		return "authentication_error"
 	case http.StatusForbidden:
 		return "insufficient_quota"
 	case http.StatusTooManyRequests:
@@ -55,12 +58,24 @@ func BuildOpenAIResponsesStreamErrorChunk(status int, errText string, sequenceNu
 		message = http.StatusText(status)
 	}
 
-	code := openAIResponsesStreamErrorCode(status)
+	code := openAIResponsesStreamErrorCode(status, errText)
 
 	trimmed := strings.TrimSpace(errText)
 	if trimmed != "" && json.Valid([]byte(trimmed)) {
 		var payload map[string]any
 		if err := json.Unmarshal([]byte(trimmed), &payload); err == nil {
+			if m, ok := payload["message"].(string); ok && strings.TrimSpace(m) != "" {
+				message = strings.TrimSpace(m)
+			} else if m, ok := payload["msg"].(string); ok && strings.TrimSpace(m) != "" {
+				message = strings.TrimSpace(m)
+			}
+			if v, ok := payload["code"]; ok && v != nil {
+				if c, ok := v.(string); ok && strings.TrimSpace(c) != "" {
+					code = strings.TrimSpace(c)
+				} else {
+					code = strings.TrimSpace(fmt.Sprint(v))
+				}
+			}
 			if t, ok := payload["type"].(string); ok && strings.TrimSpace(t) == "error" {
 				if m, ok := payload["message"].(string); ok && strings.TrimSpace(m) != "" {
 					message = strings.TrimSpace(m)
@@ -89,6 +104,10 @@ func BuildOpenAIResponsesStreamErrorChunk(status int, errText string, sequenceNu
 				}
 			}
 		}
+	}
+
+	if status == http.StatusUnauthorized && strings.TrimSpace(code) == "invalid_api_key" && !looksLikeCredentialError(message) && !looksLikeCredentialError(errText) {
+		code = "authentication_error"
 	}
 
 	if strings.TrimSpace(code) == "" {

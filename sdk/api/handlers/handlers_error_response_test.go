@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -109,5 +110,35 @@ func TestEnrichAuthSelectionError_IgnoresOtherErrors(t *testing.T) {
 	out := enrichAuthSelectionError(in, []string{"claude"}, "claude-sonnet-4-6")
 	if out != in {
 		t.Fatalf("expected original error to be returned unchanged")
+	}
+}
+
+func TestBuildErrorResponseBodyUnauthorizedWithoutCredentialSignalOmitsInvalidAPIKeyCode(t *testing.T) {
+	body := BuildErrorResponseBody(http.StatusUnauthorized, "signature expired")
+
+	var payload ErrorResponse
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if payload.Error.Type != "authentication_error" {
+		t.Fatalf("type = %q, want %q", payload.Error.Type, "authentication_error")
+	}
+	if payload.Error.Code != "" {
+		t.Fatalf("code = %q, want empty", payload.Error.Code)
+	}
+	if payload.Error.Message != "signature expired" {
+		t.Fatalf("message = %q, want %q", payload.Error.Message, "signature expired")
+	}
+}
+
+func TestBuildErrorResponseBodyUnauthorizedCredentialSignalKeepsInvalidAPIKeyCode(t *testing.T) {
+	body := BuildErrorResponseBody(http.StatusUnauthorized, "missing api key")
+
+	var payload ErrorResponse
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if payload.Error.Code != "invalid_api_key" {
+		t.Fatalf("code = %q, want %q", payload.Error.Code, "invalid_api_key")
 	}
 }

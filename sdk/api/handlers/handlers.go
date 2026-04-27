@@ -107,27 +107,8 @@ func BuildErrorResponseBody(status int, errText string) []byte {
 		return []byte(trimmed)
 	}
 
-	errType := "invalid_request_error"
-	var code string
-	switch status {
-	case http.StatusUnauthorized:
-		errType = "authentication_error"
-		code = "invalid_api_key"
-	case http.StatusForbidden:
-		errType = "permission_error"
-		code = "insufficient_quota"
-	case http.StatusTooManyRequests:
-		errType = "rate_limit_error"
-		code = "rate_limit_exceeded"
-	case http.StatusNotFound:
-		errType = "invalid_request_error"
-		code = "model_not_found"
-	default:
-		if status >= http.StatusInternalServerError {
-			errType = "server_error"
-			code = "internal_server_error"
-		}
-	}
+	errType := defaultErrorType(status)
+	code := defaultErrorCode(status, errText)
 
 	payload, err := json.Marshal(ErrorResponse{
 		Error: ErrorDetail{
@@ -140,6 +121,80 @@ func BuildErrorResponseBody(status int, errText string) []byte {
 		return []byte(fmt.Sprintf(`{"error":{"message":%q,"type":"server_error","code":"internal_server_error"}}`, errText))
 	}
 	return payload
+}
+
+func defaultErrorType(status int) string {
+	switch status {
+	case http.StatusUnauthorized:
+		return "authentication_error"
+	case http.StatusForbidden:
+		return "permission_error"
+	case http.StatusTooManyRequests:
+		return "rate_limit_error"
+	case http.StatusNotFound:
+		return "invalid_request_error"
+	default:
+		if status >= http.StatusInternalServerError {
+			return "server_error"
+		}
+		return "invalid_request_error"
+	}
+}
+
+func defaultErrorCode(status int, errText string) string {
+	switch status {
+	case http.StatusUnauthorized:
+		if looksLikeCredentialError(errText) {
+			return "invalid_api_key"
+		}
+		return ""
+	case http.StatusForbidden:
+		return "insufficient_quota"
+	case http.StatusTooManyRequests:
+		return "rate_limit_exceeded"
+	case http.StatusNotFound:
+		return "model_not_found"
+	default:
+		if status >= http.StatusInternalServerError {
+			return "internal_server_error"
+		}
+		return ""
+	}
+}
+
+func looksLikeCredentialError(errText string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(errText))
+	if normalized == "" {
+		return false
+	}
+
+	indicators := [...]string{
+		"invalid_api_key",
+		"invalid api key",
+		"api key is invalid",
+		"missing api key",
+		"apikey",
+		"access token",
+		"refresh token",
+		"auth token",
+		"bearer token",
+		"invalid token",
+		"token expired",
+		"expired token",
+		"token has expired",
+		"authentication has expired",
+		"invalid_client",
+		"invalid_grant",
+		"invalid_token",
+	}
+
+	for _, indicator := range indicators {
+		if strings.Contains(normalized, indicator) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // StreamingKeepAliveInterval returns the SSE keep-alive interval for this server.
